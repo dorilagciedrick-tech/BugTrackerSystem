@@ -1,0 +1,334 @@
+﻿using System;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Windows.Forms;
+
+namespace BugTrackerApp
+{
+    public class MainForm : Form
+    {
+        private readonly BugManager manager = new();
+        private readonly TextBox developerTextBox = new();
+        private readonly TextBox bugIdTextBox = new();
+        private readonly TextBox summaryTextBox = new();
+        private readonly ListBox displayListBox = new();
+        private readonly ComboBox viewComboBox = new();
+        private readonly Button submitButton = new();
+        private readonly Button sendToReviewButton = new();
+        private readonly Button returnToBacklogButton = new();
+        private readonly Button sprintCloseButton = new();
+        private readonly Button benchmarkButton = new();
+        private readonly TextBox benchmarkOutputTextBox = new();
+
+        public MainForm()
+        {
+            Text = "Bug Tracker";
+            Width = 1200;
+            Height = 720;
+            MinimumSize = new Size(1100, 660);
+            StartPosition = FormStartPosition.CenterScreen;
+            BackColor = Color.FromArgb(232, 240, 255);
+            Font = new Font("Segoe UI", 11F, FontStyle.Regular, GraphicsUnit.Point);
+
+            InitializeControls();
+            RefreshDisplay();
+        }
+
+        private void InitializeControls()
+        {
+            var developerLabel = new Label
+            {
+                Text = "Developer",
+                Left = 28,
+                Top = 28,
+                Width = 110,
+                Font = new Font("Segoe UI", 11F, FontStyle.Bold, GraphicsUnit.Point),
+                ForeColor = Color.FromArgb(17, 48, 94)
+            };
+            developerTextBox.SetBounds(150, 24, 760, 32);
+            developerTextBox.Font = new Font("Segoe UI", 11F, FontStyle.Regular, GraphicsUnit.Point);
+            developerTextBox.BorderStyle = BorderStyle.FixedSingle;
+            developerTextBox.BackColor = Color.White;
+
+            var bugIdLabel = new Label
+            {
+                Text = "Bug ID:",
+                Left = 28,
+                Top = 78,
+                Width = 110,
+                Font = new Font("Segoe UI", 11F, FontStyle.Bold, GraphicsUnit.Point),
+                ForeColor = Color.FromArgb(17, 48, 94)
+            };
+            bugIdTextBox.SetBounds(150, 74, 320, 32);
+            bugIdTextBox.Font = new Font("Segoe UI", 11F, FontStyle.Regular, GraphicsUnit.Point);
+            bugIdTextBox.BorderStyle = BorderStyle.FixedSingle;
+
+            var summaryLabel = new Label
+            {
+                Text = "Summary:",
+                Left = 28,
+                Top = 128,
+                Width = 110,
+                Font = new Font("Segoe UI", 11F, FontStyle.Bold, GraphicsUnit.Point),
+                ForeColor = Color.FromArgb(17, 48, 94)
+            };
+            summaryTextBox.SetBounds(150, 124, 760, 32);
+            summaryTextBox.Font = new Font("Segoe UI", 11F, FontStyle.Regular, GraphicsUnit.Point);
+            summaryTextBox.BorderStyle = BorderStyle.FixedSingle;
+
+            var buttonColor = Color.FromArgb(52, 124, 235);
+            var buttonHoverColor = Color.FromArgb(31, 100, 218);
+
+            ConfigureButton(submitButton, "Submit Bug", 28, 180, 180, 40, buttonColor, buttonHoverColor);
+            submitButton.Click += SubmitButton_Click;
+
+            ConfigureButton(sendToReviewButton, "Send to Review", 228, 180, 180, 40, buttonColor, buttonHoverColor);
+            sendToReviewButton.Click += SendToReviewButton_Click;
+
+            ConfigureButton(returnToBacklogButton, "Return to Backlog", 428, 180, 180, 40, buttonColor, buttonHoverColor);
+            returnToBacklogButton.Click += ReturnToBacklogButton_Click;
+
+            ConfigureButton(sprintCloseButton, "Sprint Close", 628, 180, 180, 40, Color.FromArgb(0, 123, 255), Color.FromArgb(0, 96, 210));
+            sprintCloseButton.Click += SprintCloseButton_Click;
+
+            ConfigureButton(benchmarkButton, "Benchmark", 828, 180, 120, 40, Color.FromArgb(0, 153, 76), Color.FromArgb(0, 128, 64));
+            benchmarkButton.Click += BenchmarkButton_Click;
+
+            viewComboBox.SetBounds(150, 248, 260, 32);
+            viewComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+            viewComboBox.Items.AddRange(new[] { "Backlog", "Review Board" });
+            viewComboBox.SelectedIndex = 0;
+            viewComboBox.SelectedIndexChanged += ViewComboBox_SelectedIndexChanged;
+            viewComboBox.BackColor = Color.White;
+            viewComboBox.Font = new Font("Segoe UI", 10F, FontStyle.Regular, GraphicsUnit.Point);
+
+            var viewLabel = new Label
+            {
+                Text = "View List:",
+                Left = 28,
+                Top = 252,
+                Width = 110,
+                Font = new Font("Segoe UI", 11F, FontStyle.Bold, GraphicsUnit.Point),
+                ForeColor = Color.FromArgb(17, 48, 94)
+            };
+
+            displayListBox.SetBounds(28, 300, 920, 220);
+            displayListBox.HorizontalScrollbar = true;
+            displayListBox.SelectionMode = SelectionMode.One;
+            displayListBox.Font = new Font("Segoe UI", 10.5F, FontStyle.Regular, GraphicsUnit.Point);
+            displayListBox.BackColor = Color.White;
+            displayListBox.BorderStyle = BorderStyle.FixedSingle;
+
+            benchmarkOutputTextBox.SetBounds(28, 540, 920, 120);
+            benchmarkOutputTextBox.Multiline = true;
+            benchmarkOutputTextBox.ScrollBars = ScrollBars.Vertical;
+            benchmarkOutputTextBox.ReadOnly = true;
+            benchmarkOutputTextBox.Font = new Font("Consolas", 10F, FontStyle.Regular, GraphicsUnit.Point);
+            benchmarkOutputTextBox.BackColor = Color.White;
+            benchmarkOutputTextBox.BorderStyle = BorderStyle.FixedSingle;
+            benchmarkOutputTextBox.Text = "Benchmark results will appear here.";
+
+            // Add controls to the form
+            Controls.AddRange(new Control[]
+            {
+                developerLabel,
+                developerTextBox,
+                bugIdLabel,
+                bugIdTextBox,
+                summaryLabel,
+                summaryTextBox,
+                submitButton,
+                sendToReviewButton,
+                returnToBacklogButton,
+                sprintCloseButton,
+                benchmarkButton,
+                viewLabel,
+                viewComboBox,
+                displayListBox,
+                benchmarkOutputTextBox
+            });
+        }
+
+        private static void ConfigureButton(Button button, string text, int left, int top, int width, int height, Color backColor, Color hoverColor)
+        {
+            button.Text = text;
+            button.SetBounds(left, top, width, height);
+            button.FlatStyle = FlatStyle.Flat;
+            button.FlatAppearance.BorderSize = 0;
+            button.ForeColor = Color.White;
+            button.Font = new Font("Segoe UI", 10F, FontStyle.Bold, GraphicsUnit.Point);
+            button.BackColor = backColor;
+            button.Cursor = Cursors.Hand;
+            button.MouseEnter += (_, _) => button.BackColor = hoverColor;
+            button.MouseLeave += (_, _) => button.BackColor = backColor;
+        }
+
+        private void SubmitButton_Click(object? sender, EventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(developerTextBox.Text) || string.IsNullOrWhiteSpace(bugIdTextBox.Text))
+            {
+                MessageBox.Show("Please enter both Developer name and Bug ID before submitting.", "Missing Data", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            var report = new BugReport(developerTextBox.Text.Trim(), bugIdTextBox.Text.Trim(), summaryTextBox.Text.Trim());
+            manager.SubmitBug(report);
+            ClearInputs();
+            RefreshDisplay();
+        }
+
+        private void SendToReviewButton_Click(object? sender, EventArgs e)
+        {
+            var selectedReport = GetSelectedReport();
+            if (selectedReport == null)
+            {
+                MessageBox.Show("Select a backlog item to send to review.", "No Selection", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            if (manager.SendToReview(selectedReport))
+            {
+                RefreshDisplay();
+            }
+        }
+
+        private void ReturnToBacklogButton_Click(object? sender, EventArgs e)
+        {
+            var selectedReport = GetSelectedReport();
+            if (selectedReport == null)
+            {
+                MessageBox.Show("Select a review item to return to backlog.", "No Selection", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            if (manager.ReturnToBacklog(selectedReport))
+            {
+                RefreshDisplay();
+            }
+        }
+
+        private void SprintCloseButton_Click(object? sender, EventArgs e)
+        {
+            manager.SprintClose();
+            RefreshDisplay();
+
+            var summary = "Sprint Close completed. Backlog now contains:\r\n" + string.Join("\r\n", manager.Backlog.Select(item => item.ToString()));
+            MessageBox.Show(summary, "Sprint Close", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        private void BenchmarkButton_Click(object? sender, EventArgs e)
+        {
+            benchmarkOutputTextBox.Text = CollectionBenchmark.BuildReport();
+            benchmarkOutputTextBox.SelectionStart = benchmarkOutputTextBox.TextLength;
+            benchmarkOutputTextBox.ScrollToCaret();
+        }
+
+        private void ViewComboBox_SelectedIndexChanged(object? sender, EventArgs e)
+        {
+            RefreshDisplay();
+        }
+
+        private BugReport? GetSelectedReport()
+        {
+            return displayListBox.SelectedItem as BugReport;
+        }
+
+        private void RefreshDisplay()
+        {
+            displayListBox.Items.Clear();
+
+            var list = viewComboBox.SelectedItem?.ToString();
+            if (list == "Review Board")
+            {
+                displayListBox.Items.AddRange(manager.ReviewBoard.Cast<object>().ToArray());
+            }
+            else
+            {
+                displayListBox.Items.AddRange(manager.Backlog.Cast<object>().ToArray());
+            }
+        }
+
+        private void ClearInputs()
+        {
+            developerTextBox.Clear();
+            bugIdTextBox.Clear();
+            summaryTextBox.Clear();
+            developerTextBox.Focus();
+        }
+
+        // Thread-safe Ask (AI) button handler. Looks up AI controls by name so handler compiles
+        // even if the AI UI was removed. Appends incremental chunks from OllamaClient to the
+        // aiChatHistory control (RichTextBox or TextBox) using Invoke to avoid cross-thread issues.
+        private async void AskButton_Click(object? sender, EventArgs e)
+        {
+            // Find controls by name (support both RichTextBox and TextBox for the log)
+            var inputCtrl = this.Controls.Find("aiInput", true).FirstOrDefault() as TextBox;
+            var sendBtn = (sender as Button) ?? this.Controls.Find("aiSendButton", true).FirstOrDefault() as Button;
+            var logCtrl = this.Controls.Find("aiChatHistory", true).FirstOrDefault();
+
+            if (inputCtrl == null || sendBtn == null || logCtrl == null)
+            {
+                // AI controls not present - nothing to do
+                return;
+            }
+
+            var query = inputCtrl.Text?.Trim();
+            if (string.IsNullOrEmpty(query)) return;
+
+            // Disable button to prevent overlapping requests. We're on UI thread.
+            sendBtn.Enabled = false;
+
+            // Clear input on UI thread
+            this.Invoke((Action)(() => inputCtrl.Clear()));
+
+            // Append a user marker to the log
+            void AppendToLog(string text)
+            {
+                this.Invoke((Action)(() =>
+                {
+                    if (logCtrl is RichTextBox rtb)
+                    {
+                        rtb.AppendText(text);
+                        rtb.SelectionStart = rtb.TextLength;
+                        rtb.ScrollToCaret();
+                    }
+                    else if (logCtrl is TextBox tb)
+                    {
+                        tb.AppendText(text);
+                        tb.SelectionStart = tb.TextLength;
+                        tb.ScrollToCaret();
+                    }
+                }));
+            }
+
+            AppendToLog($"[User] {query}\r\n");
+
+            // Progress reporter for incremental chunks
+            var progress = new Progress<string>(chunk =>
+            {
+                if (string.IsNullOrEmpty(chunk)) return;
+                AppendToLog(chunk);
+            });
+
+            try
+            {
+                using var client = new OllamaClient();
+                // SendChatAsync supports IProgress<string> to report chunks in real-time
+                var final = await client.SendChatAsync(query, "llama3.2", null, CancellationToken.None, progress).ConfigureAwait(false);
+
+                // Append final marker/result
+                AppendToLog($"\r\n[AI Completed]\r\n{final}\r\n\r\n");
+            }
+            catch (Exception ex)
+            {
+                AppendToLog($"\r\n[AI Error] {ex.Message}\r\n");
+            }
+            finally
+            {
+                // Re-enable the button on the UI thread
+                this.Invoke((Action)(() => sendBtn.Enabled = true));
+            }
+        }
+    }
+}

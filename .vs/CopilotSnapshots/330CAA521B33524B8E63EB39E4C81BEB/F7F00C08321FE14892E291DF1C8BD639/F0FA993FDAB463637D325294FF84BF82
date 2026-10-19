@@ -1,0 +1,62 @@
+﻿using System;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace BugTrackerApp
+{
+    public sealed class OllamaClient : IDisposable
+    {
+        private readonly HttpClient _http;
+        private readonly string _endpoint;
+        private readonly bool _disposeHttp;
+
+        public OllamaClient(HttpClient? httpClient = null, string? endpoint = null)
+        {
+            _endpoint = string.IsNullOrWhiteSpace(endpoint) ? "http://localhost:11434/api/chat" : endpoint!;
+            if (httpClient is null)
+            {
+                _http = new HttpClient();
+                _disposeHttp = true;
+            }
+            else
+            {
+                _http = httpClient;
+                _disposeHttp = false;
+            }
+        }
+
+        public async Task<string> SendChatAsync(string userQuery, string model = "llama3.2", string? bearerToken = null, CancellationToken cancellationToken = default, IProgress<string>? onMessage = null)
+        {
+            if (string.IsNullOrWhiteSpace(userQuery))
+                return string.Empty;
+
+            var systemInstruction = "You are an assistant that recommends the first actions a developer or support engineer should take when they encounter a bug. Prioritize only necessary and high-impact steps. Keep responses concise.";
+
+            var messages = new[] { new { role = "system", content = systemInstruction }, new { role = "user", content = userQuery } };
+            var payload = new { model = model, stream = false, messages };
+            var json = JsonSerializer.Serialize(payload);
+
+            using var req = new HttpRequestMessage(HttpMethod.Post, _endpoint)
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json")
+            };
+
+            if (!string.IsNullOrWhiteSpace(bearerToken))
+            {
+                try { req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken); } catch { }
+            }
+
+            try
+            {
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                cts.CancelAfter(TimeSpan.FromSeconds(60));
+                using var response = await _http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, cts.Token).ConfigureAwait(false);
+                }                await using var stream = await response.Content.ReadAsStreamAsync(cts.Token).ConfigureAwait(false);
+                using var reader = new System.IO.StreamReader(stream, Encoding.UTF8);
+                var sb = new StringBuilder();
+                    if (line is null) break;                    line = line.Trim();                    if (line.Length == 0) continue;                    if (line.StartsWith("data:", StringComparison.OrdinalIgnoreCase))                        line = line.Substring(5).Trim();                    if (line == "[DONE]" || line.Equals("done", StringComparison.OrdinalIgnoreCase))                        break;                    string? textPiece = null;                    try
+                    {                        using var doc = JsonDocument.Parse(line);                        var root = doc.RootElement;                        if (root.TryGetProperty("message", out var message) && message.ValueKind == JsonValueKind.Object)                        {                            if (message.TryGetProperty("content", out var mc))                            {                                if (mc.ValueKind == JsonValueKind.String) textPiece = mc.GetString();                                else if (mc.ValueKind == JsonValueKind.Object && mc.TryGetProperty("text", out var nested) && nested.ValueKind == JsonValueKind.String) textPiece = nested.GetString();                                else if (mc.ValueKind == JsonValueKind.Array && mc.GetArrayLength() > 0)                                {                                    foreach (var el in mc.EnumerateArray())                                    {                                        if (el.ValueKind == JsonValueKind.String) { textPiece = el.GetString(); break; }                                        if (el.ValueKind == JsonValueKind.Object && el.TryGetProperty("text", out var et) && et.ValueKind == JsonValueKind.String) { textPiece = et.GetString(); break; }                                    }                                }                            }                        }                        else if (root.TryGetProperty("content", out var c) && c.ValueKind == JsonValueKind.String) textPiece = c.GetString();                        else if (root.TryGetProperty("text", out var t) && t.ValueKind == JsonValueKind.String) textPiece = t.GetString();                        else if (root.TryGetProperty("response", out var r) && r.ValueKind == JsonValueKind.String) textPiece = r.GetString();                        else if (root.TryGetProperty("choices", out var choices) && choices.ValueKind == JsonValueKind.Array && choices.GetArrayLength() > 0)                        {                            var first = choices[0];                            if (first.ValueKind == JsonValueKind.Object)                            {                                if (first.TryGetProperty("message", out var fm) && fm.ValueKind == JsonValueKind.Object && fm.TryGetProperty("content", out var fmc) && fmc.ValueKind == JsonValueKind.String) textPiece = fmc.GetString();                                else if (first.TryGetProperty("content", out var fc) && fc.ValueKind == JsonValueKind.String) textPiece = fc.GetString();                            }                        }                    }                    catch (JsonException)                    {                        textPiece = line;                    }                    if (!string.IsNullOrEmpty(textPiece))                    {                        try { onMessage?.Report(textPiece); } catch { }                        sb.Append(textPiece);                    }          

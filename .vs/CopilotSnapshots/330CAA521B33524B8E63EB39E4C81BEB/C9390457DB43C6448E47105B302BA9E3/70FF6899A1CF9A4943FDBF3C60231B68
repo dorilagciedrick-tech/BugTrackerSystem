@@ -1,0 +1,157 @@
+﻿using System;
+using System.IO;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace BugTrackerApp
+{
+    /// <summary>
+    /// Helper for calling a local Ollama /api/chat endpoint and processing NDJSON streams.
+    /// </summary>
+    public sealed class OllamaClient : IDisposable
+    {
+        private readonly HttpClient _http;
+        private readonly string _endpoint;
+        private readonly bool _disposeHttp;
+
+        public OllamaClient(HttpClient? httpClient = null, string? endpoint = null)
+        {
+            // Fallback default set correctly to local Ollama chat endpoint
+            _endpoint = string.IsNullOrWhiteSpace(endpoint) ? "http://localhost:11434/api/chat" : endpoint!;
+            if (httpClient is null)
+            {
+                _http = new HttpClient();
+                _disposeHttp = true;
+            }
+            else
+            {
+                _http = httpClient;
+                _disposeHttp = false;
+            }
+        }
+
+        /// <summary>
+        /// Send a chat request to Ollama /api/chat. Reads streaming responses line-by-line,
+        /// extracts message.content pieces and reports them incrementally via onMessage. Returns accumulated text.
+        /// </summary>
+        public async Task<string> SendChatAsync(string userQuery, string model = "llama3.2", string? bearerToken = null, CancellationToken cancellationToken = default, IProgress<string>? onMessage = null)
+        {
+            if (string.IsNullOrWhiteSpace(userQuery))
+                return string.Empty;
+
+            var systemInstruction = "You are an assistant that recommends the first actions a developer or support engineer should take when they encounter a bug. Prioritize only necessary and high-impact steps. Keep responses concise.";
+
+            var messages = new[]
+            {
+                new { role = "system", content = systemInstruction },
+                new { role = "user", content = userQuery }
+            };
+
+            // FIX 1: Flipped stream to TRUE so Ollama responds line-by-line
+            var payload = new { model = model, stream = true, messages };
+            var json = JsonSerializer.Serialize(payload);
+
+            using var req = new HttpRequestMessage(HttpMethod.Post, _endpoint)
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json")
+            };
+
+            if (!string.IsNullOrWhiteSpace(bearerToken))
+            {
+                try { req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken); } catch { }
+            }
+
+            try
+            {
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                cts.CancelAfter(TimeSpan.FromSeconds(60));
+
+                // Send request with ResponseHeadersRead for efficient stream reading
+                using var response = await _http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, cts.Token).ConfigureAwait(false);
+                if (!response.IsSuccessStatusCode)
+                {
+                    var err = await response.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
+                    return $"Ollama request failed ({(int)response.StatusCode}): {err}";
+                }
+
+                await using var stream = await response.Content.ReadAsStreamAsync(cts.Token).ConfigureAwait(false);
+                using var reader = new StreamReader(stream, Encoding.UTF8);
+
+                var sb = new StringBuilder();
+
+                // FIX 2: Replaced custom property checks with robust, modern JSON property extractions
+                while (!reader.EndOfStream && !cts.IsCancellationRequested)
+                {
+                    var line = await reader.ReadLineAsync().ConfigureAwait(false);
+                    if (line is null) break;
+                    line = line.Trim();
+                    if (line.Length == 0) continue;
+
+                    // Clean out common server SSE artifacts if present
+                    if (line.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+                        line = line.Substring(5).Trim();
+
+                    if (line == "[DONE]" || line.Equals("done", StringComparison.OrdinalIgnoreCase))
+                        break;
+
+                    string? textPiece = null;
+                    try
+                    {
+                        using var doc = JsonDocument.Parse(line);
+                        var root = doc.RootElement;
+
+                        // Parse Ollama standard format: message -> content
+                        if (root.TryGetProperty("message", out var message) && message.ValueKind == JsonValueKind.Object)
+                        {
+                            if (message.TryGetProperty("content", out var content) && content.ValueKind == JsonValueKind.String)
+                            {
+                                textPiece = content.GetString();
+                            }
+                        }
+                        // Fallback 1: Root-level response string (e.g. if pointing to /api/generate accidentally)
+                        else if (root.TryGetProperty("response", out var r) && r.ValueKind == JsonValueKind.String)
+                        {
+                            textPiece = r.GetString();
+                        }
+                        // Fallback 2: Root-level content string
+                        else if (root.TryGetProperty("content", out var c) && c.ValueKind == JsonValueKind.String)
+                        {
+                            textPiece = c.GetString();
+                        }
+                    }
+                    catch (JsonException)
+                    {
+                        // Fallback to avoid breaking UI layout if formatting changes
+                        textPiece = line;
+                    }
+
+                    if (!string.IsNullOrEmpty(textPiece))
+                    {
+                        // Safely report clean piece back to Mainform interface thread
+                        try { onMessage?.Report(textPiece); } catch { }
+                        sb.Append(textPiece);
+                    }
+                }
+
+                return sb.ToString();
+            }
+            catch (OperationCanceledException)
+            {
+                return "Ollama request timed out or was cancelled.";
+            }
+            catch (Exception ex)
+            {
+                return $"OllamaClient error: {ex.Message}";
+            }
+        }
+
+        public void Dispose()
+        {
+            if (_disposeHttp) _http.Dispose();
+        }
+    }
+}

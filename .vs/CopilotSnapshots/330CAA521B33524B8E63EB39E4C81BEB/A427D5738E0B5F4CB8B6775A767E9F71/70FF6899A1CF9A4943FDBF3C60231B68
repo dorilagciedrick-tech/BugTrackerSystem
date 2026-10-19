@@ -1,0 +1,151 @@
+﻿using System;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace BugTrackerApp
+{
+    /// <summary>
+    /// Minimal helper for calling a local Ollama /api/chat endpoint.
+    /// Copy-pasteable, .NET 6/8 compatible.
+    /// </summary>
+    public sealed class OllamaClient : IDisposable
+    {
+        private readonly HttpClient _http;
+        private readonly string _endpoint;
+        private bool _disposeHttp;
+
+        public OllamaClient(HttpClient? httpClient = null, string? endpoint = null)
+        {
+            _endpoint = string.IsNullOrWhiteSpace(endpoint) ? "http://localhost:11434/api/chat" : endpoint!;
+            if (httpClient is null)
+            {
+                _http = new HttpClient();
+                _disposeHttp = true;
+            }
+            else
+            {
+                _http = httpClient;
+                _disposeHttp = false;
+            }
+        }
+
+        /// <summary>
+        /// Send a chat-style request to the Ollama /api/chat endpoint. Returns textual reply or an error message.
+        /// </summary>
+        public async Task<string> SendChatAsync(string userQuery, string model = "llama3.2", string? bearerToken = null, CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(userQuery)) return string.Empty;
+
+            // Build payload: model, messages[], stream:false
+            var systemInstruction = "You are an assistant that recommends the first actions a developer or support engineer should take when they encounter a bug. Prioritize only necessary and high-impact steps. Keep responses concise.";
+
+            var messages = new[]
+            {
+                new { role = "system", content = systemInstruction },
+                new { role = "user", content = userQuery }
+            };
+
+            var payload = new { model = model, stream = false, messages = messages };
+
+            var json = JsonSerializer.Serialize(payload);
+
+            using var req = new HttpRequestMessage(HttpMethod.Post, _endpoint)
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json")
+            };
+
+            if (!string.IsNullOrWhiteSpace(bearerToken))
+            {
+                try
+                {
+                    req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+                }
+                catch
+                {
+                    // ignore malformed token format; let server respond accordingly
+                }
+            }
+
+            try
+            {
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                cts.CancelAfter(TimeSpan.FromSeconds(20));
+
+                var resp = await _http.SendAsync(req, HttpCompletionOption.ResponseContentRead, cts.Token).ConfigureAwait(false);
+                var respText = await resp.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
+
+                if (!resp.IsSuccessStatusCode)
+                {
+                    return $"Ollama request failed ({(int)resp.StatusCode}): {respText}";
+                }
+
+                // Try to parse common shapes
+                try
+                {
+                    using var doc = JsonDocument.Parse(respText);
+                    var root = doc.RootElement;
+
+                    if (root.TryGetProperty("message", out var message) && message.ValueKind == JsonValueKind.Object)
+                    {
+                        if (message.TryGetProperty("content", out var c) && c.ValueKind == JsonValueKind.String)
+                            return c.GetString() ?? string.Empty;
+                    }
+
+                    if (root.TryGetProperty("choices", out var choices) && choices.ValueKind == JsonValueKind.Array && choices.GetArrayLength() > 0)
+                    {
+                        var first = choices[0];
+                        if (first.ValueKind == JsonValueKind.Object)
+                        {
+                            if (first.TryGetProperty("message", out var m) && m.ValueKind == JsonValueKind.Object && m.TryGetProperty("content", out var mc) && mc.ValueKind == JsonValueKind.String)
+                                return mc.GetString() ?? string.Empty;
+                            if (first.TryGetProperty("content", out var fc) && fc.ValueKind == JsonValueKind.String)
+                                return fc.GetString() ?? string.Empty;
+                        }
+                    }
+
+                    if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("output", out var output) && output.ValueKind == JsonValueKind.Array && output.GetArrayLength() > 0)
+                    {
+                        var o0 = output[0];
+                        if (o0.ValueKind == JsonValueKind.Object && o0.TryGetProperty("content", out var oc) && oc.ValueKind == JsonValueKind.String)
+                            return oc.GetString() ?? string.Empty;
+                    }
+
+                    if (root.ValueKind == JsonValueKind.Array && root.GetArrayLength() > 0)
+                    {
+                        var first = root[0];
+                        if (first.ValueKind == JsonValueKind.Object && first.TryGetProperty("content", out var fc) && fc.ValueKind == JsonValueKind.String)
+                            return fc.GetString() ?? string.Empty;
+                        if (first.ValueKind == JsonValueKind.String) return first.GetString() ?? string.Empty;
+                    }
+
+                    // fallback
+                    return respText;
+                }
+                catch (JsonException)
+                {
+                    return respText;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                return "Ollama request timed out.";
+            }
+            catch (Exception ex)
+            {
+                return $"OllamaClient error: {ex.Message}";
+            }
+        }
+
+        public void Dispose()
+        {
+            if (_disposeHttp)
+            {
+                _http.Dispose();
+            }
+        }
+    }
+}

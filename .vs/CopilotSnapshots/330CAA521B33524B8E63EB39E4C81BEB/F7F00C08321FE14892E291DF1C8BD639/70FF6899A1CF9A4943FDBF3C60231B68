@@ -1,0 +1,194 @@
+﻿using System;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace BugTrackerApp
+{
+    /// <summary>
+    /// Minimal helper for calling a local Ollama /api/chat endpoint.
+    /// Copy-pasteable, .NET 6/8 compatible.
+    /// </summary>
+    public sealed class OllamaClient : IDisposable
+    {
+        private readonly HttpClient _http;
+        private readonly string _endpoint;
+        private bool _disposeHttp;
+
+        public OllamaClient(HttpClient? httpClient = null, string? endpoint = null)
+        {
+            _endpoint = string.IsNullOrWhiteSpace(endpoint) ? "http://localhost:11434/api/chat" : endpoint!;
+            if (httpClient is null)
+            {
+                _http = new HttpClient();
+                _disposeHttp = true;
+            }
+            else
+            {
+                _http = httpClient;
+                _disposeHttp = false;
+            }
+        }
+
+        /// <summary>
+        /// Send a chat-style request to the Ollama /api/chat endpoint. Returns textual reply or an error message.
+        /// </summary>
+        /// <summary>
+        /// Send a chat request to the Ollama /api/chat endpoint.
+        /// If the server streams NDJSON/SSE chunks, this method will read the response line-by-line
+        /// and report deserialized text pieces through the optional onMessage progress callback.
+        /// Returns the accumulated final text when complete.
+        /// </summary>
+        public async Task<string> SendChatAsync(string userQuery, string model = "llama3.2", string? bearerToken = null, CancellationToken cancellationToken = default, IProgress<string>? onMessage = null)
+        {
+            if (string.IsNullOrWhiteSpace(userQuery)) return string.Empty;
+
+            // Build payload: model, messages[], stream:false
+            var systemInstruction = "You are an assistant that recommends the first actions a developer or support engineer should take when they encounter a bug. Prioritize only necessary and high-impact steps. Keep responses concise.";
+
+            var messages = new[]
+            {
+                new { role = "system", content = systemInstruction },
+                new { role = "user", content = userQuery }
+            };
+
+            var payload = new { model = model, stream = false, messages = messages };
+
+            var json = JsonSerializer.Serialize(payload);
+
+            using var req = new HttpRequestMessage(HttpMethod.Post, _endpoint)
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json")
+            };
+
+            if (!string.IsNullOrWhiteSpace(bearerToken))
+            {
+                try
+                {
+                    req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+                }
+                catch
+                {
+                    // ignore malformed token format; let server respond accordingly
+                }
+            }
+
+            try
+            {
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                cts.CancelAfter(TimeSpan.FromSeconds(60));
+
+                // Request headers read so we can stream the body
+                var resp = await _http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, cts.Token).ConfigureAwait(false);
+
+                if (!resp.IsSuccessStatusCode)
+                {
+                    var body = await resp.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
+                    return $"Ollama request failed ({(int)resp.StatusCode}): {body}";
+                }
+
+                // Stream the response line-by-line (NDJSON or SSE)
+                await using var stream = await resp.Content.ReadAsStreamAsync(cts.Token).ConfigureAwait(false);
+                using var reader = new System.IO.StreamReader(stream, Encoding.UTF8);
+
+                var sb = new StringBuilder();
+
+                while (!reader.EndOfStream && !cts.IsCancellationRequested)
+                {
+                    var line = await reader.ReadLineAsync().ConfigureAwait(false);
+                    if (line is null) break;
+                    line = line.Trim();
+                    if (line.Length == 0) continue;
+
+                    // SSE lines may be prefixed with 'data:'
+                    if (line.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        line = line.Substring(5).Trim();
+                    }
+
+                    // Some servers send a done marker
+                    if (line == "[DONE]" || line == "done") break;
+
+                    // Try to parse JSON block per-line (NDJSON)
+                    string? textPiece = null;
+                    try
+                    {
+                        using var doc = JsonDocument.Parse(line);
+                        var root = doc.RootElement;
+
+                        // Preferred property per your request
+                        if (root.TryGetProperty("response", out var r) && r.ValueKind == JsonValueKind.String)
+                        {
+                            textPiece = r.GetString();
+                        }
+                        // Fallbacks to other common shapes
+                        else if (root.TryGetProperty("message", out var message) && message.ValueKind == JsonValueKind.Object && message.TryGetProperty("content", out var mc) && mc.ValueKind == JsonValueKind.String)
+                        {
+                            textPiece = mc.GetString();
+                        }
+                        else if (root.TryGetProperty("content", out var c) && c.ValueKind == JsonValueKind.String)
+                        {
+                            textPiece = c.GetString();
+                        }
+                        else if (root.TryGetProperty("text", out var t) && t.ValueKind == JsonValueKind.String)
+                        {
+                            textPiece = t.GetString();
+                        }
+                        else if (root.TryGetProperty("choices", out var choices) && choices.ValueKind == JsonValueKind.Array && choices.GetArrayLength() > 0)
+                        {
+                            var first = choices[0];
+                            if (first.ValueKind == JsonValueKind.Object)
+                            {
+                                if (first.TryGetProperty("message", out var m) && m.ValueKind == JsonValueKind.Object && m.TryGetProperty("content", out var cont) && cont.ValueKind == JsonValueKind.String)
+                                    textPiece = cont.GetString();
+                                else if (first.TryGetProperty("content", out var cont2) && cont2.ValueKind == JsonValueKind.String)
+                                    textPiece = cont2.GetString();
+                            }
+                        }
+                    }
+                    catch (JsonException)
+                    {
+                        // Not JSON - treat the line as plain text
+                        textPiece = line;
+                    }
+
+                    if (!string.IsNullOrEmpty(textPiece))
+                    {
+                        // Report incremental piece to caller UI
+                        try
+                        {
+                            onMessage?.Report(textPiece);
+                        }
+                        catch
+                        {
+                            // swallow progress exceptions to avoid crashing the stream
+                        }
+
+                        sb.Append(textPiece);
+                    }
+                }
+
+                return sb.ToString();
+            }
+            catch (OperationCanceledException)
+            {
+                return "Ollama request timed out or was cancelled.";
+            }
+            catch (Exception ex)
+            {
+                return $"OllamaClient error: {ex.Message}";
+            }
+        }
+
+        public void Dispose()
+        {
+            if (_disposeHttp)
+            {
+                _http.Dispose();
+            }
+        }
+    }
+}

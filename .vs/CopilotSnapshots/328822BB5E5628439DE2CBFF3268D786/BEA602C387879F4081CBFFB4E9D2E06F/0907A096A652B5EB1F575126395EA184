@@ -1,0 +1,434 @@
+﻿using System;
+using System.Drawing;
+using System.Linq;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+/* Amuni ang WinForms user interface kag event handlers
+- Ga handle sya sang button clicks: submit, send-to-review, return-to-backlog, 
+and sprint-close, plus UI refresh logic. */
+namespace BugTrackerApp
+{
+    public class MainForm : Form
+    {
+        private readonly BugManager manager = new();
+        private readonly TextBox developerTextBox = new();
+        private readonly TextBox bugIdTextBox = new();
+        private readonly TextBox summaryTextBox = new();
+        private readonly ListBox displayListBox = new();
+        private readonly ComboBox viewComboBox = new();
+        private readonly Button submitButton = new();
+        private readonly Button sendToReviewButton = new();
+        private readonly Button returnToBacklogButton = new();
+        private readonly Button sprintCloseButton = new();
+        private readonly Button benchmarkButton = new();
+        private readonly TextBox benchmarkOutputTextBox = new();
+        // AI helper panel and controls
+        private readonly Panel aiPanel = new();
+        private readonly TextBox aiChatHistory = new();
+        private readonly TextBox aiInput = new();
+        private readonly Button aiSendButton = new();
+        // External LLM integration (default: local Text Generation Inference)
+        private readonly TextBox llmEndpointTextBox = new();
+        private readonly HttpClient httpClient = new();
+
+        public MainForm()
+        {
+            Text = "Bug Tracker";
+            Width = 1200;
+            Height = 720;
+            MinimumSize = new Size(1100, 660);
+            StartPosition = FormStartPosition.CenterScreen;
+            BackColor = Color.FromArgb(232, 240, 255);
+            Font = new Font("Segoe UI", 11F, FontStyle.Regular, GraphicsUnit.Point);
+
+            InitializeControls();
+            RefreshDisplay();
+        }
+
+        private void InitializeControls()
+        {
+            var developerLabel = new Label
+            {
+                Text = "Developer",
+                Left = 28,
+                Top = 28,
+                Width = 110,
+                Font = new Font("Segoe UI", 11F, FontStyle.Bold, GraphicsUnit.Point),
+                ForeColor = Color.FromArgb(17, 48, 94)
+            };
+            developerTextBox.SetBounds(150, 24, 760, 32);
+            developerTextBox.Font = new Font("Segoe UI", 11F, FontStyle.Regular, GraphicsUnit.Point);
+            developerTextBox.BorderStyle = BorderStyle.FixedSingle;
+            developerTextBox.BackColor = Color.White;
+
+            var bugIdLabel = new Label
+            {
+                Text = "Bug ID:",
+                Left = 28,
+                Top = 78,
+                Width = 110,
+                Font = new Font("Segoe UI", 11F, FontStyle.Bold, GraphicsUnit.Point),
+                ForeColor = Color.FromArgb(17, 48, 94)
+            };
+            bugIdTextBox.SetBounds(150, 74, 320, 32);
+            bugIdTextBox.Font = new Font("Segoe UI", 11F, FontStyle.Regular, GraphicsUnit.Point);
+            bugIdTextBox.BorderStyle = BorderStyle.FixedSingle;
+
+            var summaryLabel = new Label
+            {
+                Text = "Summary:",
+                Left = 28,
+                Top = 128,
+                Width = 110,
+                Font = new Font("Segoe UI", 11F, FontStyle.Bold, GraphicsUnit.Point),
+                ForeColor = Color.FromArgb(17, 48, 94)
+            };
+            summaryTextBox.SetBounds(150, 124, 760, 32);
+            summaryTextBox.Font = new Font("Segoe UI", 11F, FontStyle.Regular, GraphicsUnit.Point);
+            summaryTextBox.BorderStyle = BorderStyle.FixedSingle;
+
+            var buttonColor = Color.FromArgb(52, 124, 235);
+            var buttonHoverColor = Color.FromArgb(31, 100, 218);
+
+            ConfigureButton(submitButton, "Submit Bug", 28, 180, 180, 40, buttonColor, buttonHoverColor);
+            submitButton.Click += SubmitButton_Click;
+
+            ConfigureButton(sendToReviewButton, "Send to Review", 228, 180, 180, 40, buttonColor, buttonHoverColor);
+            sendToReviewButton.Click += SendToReviewButton_Click;
+
+            ConfigureButton(returnToBacklogButton, "Return to Backlog", 428, 180, 180, 40, buttonColor, buttonHoverColor);
+            returnToBacklogButton.Click += ReturnToBacklogButton_Click;
+
+            ConfigureButton(sprintCloseButton, "Sprint Close", 628, 180, 180, 40, Color.FromArgb(0, 123, 255), Color.FromArgb(0, 96, 210));
+            sprintCloseButton.Click += SprintCloseButton_Click;
+
+            ConfigureButton(benchmarkButton, "Benchmark", 828, 180, 120, 40, Color.FromArgb(0, 153, 76), Color.FromArgb(0, 128, 64));
+            benchmarkButton.Click += BenchmarkButton_Click;
+
+            viewComboBox.SetBounds(150, 248, 260, 32);
+            viewComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+            viewComboBox.Items.AddRange(new[] { "Backlog", "Review Board" });
+            viewComboBox.SelectedIndex = 0;
+            viewComboBox.SelectedIndexChanged += ViewComboBox_SelectedIndexChanged;
+            viewComboBox.BackColor = Color.White;
+            viewComboBox.Font = new Font("Segoe UI", 10F, FontStyle.Regular, GraphicsUnit.Point);
+
+            var viewLabel = new Label
+            {
+                Text = "View List:",
+                Left = 28,
+                Top = 252,
+                Width = 110,
+                Font = new Font("Segoe UI", 11F, FontStyle.Bold, GraphicsUnit.Point),
+                ForeColor = Color.FromArgb(17, 48, 94)
+            };
+
+            displayListBox.SetBounds(28, 300, 920, 220);
+            displayListBox.HorizontalScrollbar = true;
+            displayListBox.SelectionMode = SelectionMode.One;
+            displayListBox.Font = new Font("Segoe UI", 10.5F, FontStyle.Regular, GraphicsUnit.Point);
+            displayListBox.BackColor = Color.White;
+            displayListBox.BorderStyle = BorderStyle.FixedSingle;
+            displayListBox.DoubleClick += DisplayListBox_DoubleClick;
+
+            benchmarkOutputTextBox.SetBounds(28, 540, 920, 120);
+            benchmarkOutputTextBox.Multiline = true;
+            benchmarkOutputTextBox.ScrollBars = ScrollBars.Vertical;
+            benchmarkOutputTextBox.ReadOnly = true;
+            benchmarkOutputTextBox.Font = new Font("Consolas", 10F, FontStyle.Regular, GraphicsUnit.Point);
+            benchmarkOutputTextBox.BackColor = Color.White;
+            benchmarkOutputTextBox.BorderStyle = BorderStyle.FixedSingle;
+            benchmarkOutputTextBox.Text = "Benchmark results will appear here.";
+
+            Controls.Add(developerLabel);
+            Controls.Add(developerTextBox);
+            Controls.Add(bugIdLabel);
+            Controls.Add(bugIdTextBox);
+            Controls.Add(summaryLabel);
+            Controls.Add(summaryTextBox);
+            Controls.Add(submitButton);
+            Controls.Add(sendToReviewButton);
+            Controls.Add(returnToBacklogButton);
+            Controls.Add(sprintCloseButton);
+            Controls.Add(benchmarkButton);
+            Controls.Add(viewLabel);
+            Controls.Add(viewComboBox);
+            Controls.Add(displayListBox);
+            Controls.Add(benchmarkOutputTextBox);
+
+            // --- AI chat panel (right side) ---
+            aiPanel.SetBounds(960, 24, 200, 636);
+            aiPanel.BackColor = Color.FromArgb(248, 250, 255);
+            aiPanel.BorderStyle = BorderStyle.FixedSingle;
+
+            // LLM endpoint (defaults to local Text Generation Inference)
+            llmEndpointTextBox.SetBounds(8, 8, 184, 20);
+            llmEndpointTextBox.Font = new Font("Segoe UI", 8F);
+            llmEndpointTextBox.Text = "http://127.0.0.1:8080/v1/generate"; // default local TGI endpoint
+
+            aiChatHistory.SetBounds(8, 36, 184, 456);
+            aiChatHistory.Multiline = true;
+            aiChatHistory.ReadOnly = true;
+            aiChatHistory.ScrollBars = ScrollBars.Vertical;
+            aiChatHistory.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
+            aiChatHistory.BackColor = Color.White;
+            aiChatHistory.Text = "AI Assistant: Ask what to do first when encountering a bug. Click a bug in the list to get a recommendation or type your question below.";
+
+            aiInput.SetBounds(8, 512, 136, 28);
+            aiInput.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
+
+            ConfigureButton(aiSendButton, "Ask", 152, 532, 40, 32, Color.FromArgb(52, 124, 235), Color.FromArgb(31, 100, 218));
+            aiSendButton.Click += AiSendButton_Click;
+
+            aiPanel.Controls.Add(llmEndpointTextBox);
+            aiPanel.Controls.Add(aiChatHistory);
+            aiPanel.Controls.Add(aiInput);
+            aiPanel.Controls.Add(aiSendButton);
+
+            Controls.Add(aiPanel);
+        }
+
+        private static void ConfigureButton(Button button, string text, int left, int top, int width, int height, Color backColor, Color hoverColor)
+        {
+            button.Text = text;
+            button.SetBounds(left, top, width, height);
+            button.FlatStyle = FlatStyle.Flat;
+            button.FlatAppearance.BorderSize = 0;
+            button.ForeColor = Color.White;
+            button.Font = new Font("Segoe UI", 10F, FontStyle.Bold, GraphicsUnit.Point);
+            button.BackColor = backColor;
+            button.Cursor = Cursors.Hand;
+            button.MouseEnter += (_, _) => button.BackColor = hoverColor;
+            button.MouseLeave += (_, _) => button.BackColor = backColor;
+        }
+
+        private void SubmitButton_Click(object? sender, EventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(developerTextBox.Text) || string.IsNullOrWhiteSpace(bugIdTextBox.Text))
+            {
+                MessageBox.Show("Please enter both Developer name and Bug ID before submitting.", "Missing Data", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            var report = new BugReport(developerTextBox.Text.Trim(), bugIdTextBox.Text.Trim(), summaryTextBox.Text.Trim());
+            manager.SubmitBug(report);
+            ClearInputs();
+            RefreshDisplay();
+        }
+
+        private void SendToReviewButton_Click(object? sender, EventArgs e)
+        {
+            var selectedReport = GetSelectedReport();
+            if (selectedReport == null)
+            {
+                MessageBox.Show("Select a backlog item to send to review.", "No Selection", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            if (manager.SendToReview(selectedReport))
+            {
+                RefreshDisplay();
+            }
+        }
+
+        private void ReturnToBacklogButton_Click(object? sender, EventArgs e)
+        {
+            var selectedReport = GetSelectedReport();
+            if (selectedReport == null)
+            {
+                MessageBox.Show("Select a review item to return to backlog.", "No Selection", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            if (manager.ReturnToBacklog(selectedReport))
+            {
+                RefreshDisplay();
+            }
+        }
+
+        private void SprintCloseButton_Click(object? sender, EventArgs e)
+        {
+            manager.SprintClose();
+            RefreshDisplay();
+
+            var summary = "Sprint Close completed. Backlog now contains:\r\n" + string.Join("\r\n", manager.Backlog.Select(item => item.ToString()));
+            MessageBox.Show(summary, "Sprint Close", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        private void BenchmarkButton_Click(object? sender, EventArgs e)
+        {
+            benchmarkOutputTextBox.Text = CollectionBenchmark.BuildReport();
+            benchmarkOutputTextBox.SelectionStart = benchmarkOutputTextBox.TextLength;
+            benchmarkOutputTextBox.ScrollToCaret();
+        }
+
+        private void ViewComboBox_SelectedIndexChanged(object? sender, EventArgs e)
+        {
+            RefreshDisplay();
+        }
+
+        private BugReport? GetSelectedReport()
+        {
+            return displayListBox.SelectedItem as BugReport;
+        }
+
+        private void RefreshDisplay()
+        {
+            displayListBox.Items.Clear();
+
+            var list = viewComboBox.SelectedItem?.ToString();
+            if (list == "Review Board")
+            {
+                displayListBox.Items.AddRange(manager.ReviewBoard.Cast<object>().ToArray());
+            }
+            else
+            {
+                displayListBox.Items.AddRange(manager.Backlog.Cast<object>().ToArray());
+            }
+        }
+
+        // AI assistant handlers
+        private async void DisplayListBox_DoubleClick(object? sender, EventArgs e)
+        {
+            var selected = GetSelectedReport();
+            if (selected == null)
+            {
+                AppendAiMessage("User", "Please select a bug first.");
+                AppendAiMessage("AI", "Select a bug from the list and I'll recommend the first things to check based on severity.");
+                return;
+            }
+
+            AppendAiMessage("User", selected.ToString());
+            string response;
+            var prompt = BuildPrompt(string.Empty, selected);
+            response = await CallTextGenerationInferenceAsync(prompt) ?? LocalFallbackResponse(selected?.Summary ?? string.Empty);
+
+            AppendAiMessage("AI", response);
+        }
+
+        private async void AiSendButton_Click(object? sender, EventArgs e)
+        {
+            var query = aiInput.Text?.Trim();
+            if (string.IsNullOrEmpty(query)) return;
+            AppendAiMessage("User", query);
+
+            string response;
+            var prompt = BuildPrompt(query, GetSelectedReport());
+            response = await CallTextGenerationInferenceAsync(prompt) ?? LocalFallbackResponse(query);
+
+            AppendAiMessage("AI", response);
+            aiInput.Clear();
+        }
+
+        private void AppendAiMessage(string sender, string message)
+        {
+            var time = DateTime.Now.ToString("HH:mm");
+            aiChatHistory.AppendText($"[{time}] {sender}: {message}\r\n\r\n");
+            aiChatHistory.SelectionStart = aiChatHistory.TextLength;
+            aiChatHistory.ScrollToCaret();
+        }
+
+        private string LocalFallbackResponse(string context)
+        {
+            if (string.IsNullOrWhiteSpace(context))
+            {
+                return "Local LLM did not respond. Ensure a Text Generation Inference server is running at the configured endpoint (default: http://127.0.0.1:8080/v1/generate).";
+            }
+
+            return "Local LLM did not respond. Try reproducing the issue, collecting logs and stack traces, and then retry. If you want, change the endpoint to a different local model server.";
+        }
+
+        private string BuildPrompt(string userQuery, BugReport? selected)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("You are an assistant that recommends the first actions a developer or support engineer should take when they encounter a bug. Prioritize only necessary and high-impact steps. Keep responses concise.");
+            if (selected != null)
+            {
+                sb.AppendLine($"Selected bug: ID={selected.BugID}, Developer={selected.DeveloperName}, Summary={selected.Summary}");
+            }
+            if (!string.IsNullOrWhiteSpace(userQuery))
+            {
+                sb.AppendLine("User query:");
+                sb.AppendLine(userQuery);
+            }
+            sb.AppendLine();
+            sb.AppendLine("Respond with a short prioritized list (1-5) and a one-sentence reason.");
+            return sb.ToString();
+        }
+
+        private async Task<string?> CallTextGenerationInferenceAsync(string prompt)
+        {
+            try
+            {
+                var endpoint = llmEndpointTextBox.Text?.Trim();
+                if (string.IsNullOrWhiteSpace(endpoint))
+                {
+                    return "LLM endpoint is not configured. Please run a local Text Generation Inference server and set its generate URL in the endpoint field.";
+                }
+
+                var uri = endpoint;
+                var payload = new { inputs = prompt, parameters = new { max_new_tokens = 256, temperature = 0.2 } };
+                var json = JsonSerializer.Serialize(payload);
+                using var req = new HttpRequestMessage(HttpMethod.Post, uri)
+                {
+                    Content = new StringContent(json, Encoding.UTF8, "application/json")
+                };
+
+                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(20));
+                var resp = await httpClient.SendAsync(req, cts.Token).ConfigureAwait(false);
+                var respText = await resp.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
+
+                if (!resp.IsSuccessStatusCode)
+                {
+                    return $"Local LLM request failed ({(int)resp.StatusCode}). Response: {respText}";
+                }
+
+                try
+                {
+                    using var doc = JsonDocument.Parse(respText);
+                    var root = doc.RootElement;
+
+                    // Text Generation Inference commonly returns 'generated_text' or 'results'[0]['text']
+                    if (root.TryGetProperty("generated_text", out var gen)) return gen.GetString();
+                    if (root.TryGetProperty("results", out var results) && results.ValueKind == JsonValueKind.Array && results.GetArrayLength() > 0)
+                    {
+                        var first = results[0];
+                        if (first.TryGetProperty("text", out var t)) return t.GetString();
+                        if (first.TryGetProperty("generated_text", out var gt)) return gt.GetString();
+                    }
+
+                    // Some servers return array of strings
+                    if (root.ValueKind == JsonValueKind.Array && root.GetArrayLength() > 0)
+                    {
+                        var first = root[0];
+                        if (first.ValueKind == JsonValueKind.Object && first.TryGetProperty("generated_text", out var g2)) return g2.GetString();
+                        if (first.ValueKind == JsonValueKind.String) return first.GetString();
+                    }
+
+                    // fallback: return raw body
+                    return respText;
+                }
+                catch (JsonException)
+                {
+                    return respText;
+                }
+            }
+            catch (Exception ex)
+            {
+                return $"Local LLM call failed: {ex.Message}.";
+            }
+        }
+
+        private void ClearInputs()
+        {
+            developerTextBox.Clear();
+            bugIdTextBox.Clear();
+            summaryTextBox.Clear();
+            developerTextBox.Focus();
+        }
+    }
+}

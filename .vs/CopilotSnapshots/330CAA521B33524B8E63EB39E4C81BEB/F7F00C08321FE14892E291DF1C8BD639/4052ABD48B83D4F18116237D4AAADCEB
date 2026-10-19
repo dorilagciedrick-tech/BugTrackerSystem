@@ -1,0 +1,86 @@
+﻿using System;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace BugTrackerApp
+{
+    /// <summary>
+    /// Minimal helper for calling a local Ollama /api/chat endpoint.
+    /// Copy-pasteable, .NET 6/8 compatible.
+    /// </summary>
+    public sealed class OllamaClient : IDisposable
+    {
+        private readonly HttpClient _http;
+        private readonly string _endpoint;
+        private bool _disposeHttp;
+
+        public OllamaClient(HttpClient? httpClient = null, string? endpoint = null)
+        {
+            _endpoint = string.IsNullOrWhiteSpace(endpoint) ? "http://localhost:11434/api/chat" : endpoint!;
+            if (httpClient is null)
+            {
+                _http = new HttpClient();
+                _disposeHttp = true;
+            }
+            else
+            {
+                _http = httpClient;
+                _disposeHttp = false;
+            }
+        }
+
+        /// <summary>
+        /// Send a chat request to the Ollama /api/chat endpoint.
+        /// If the server streams NDJSON/SSE chunks, this method will read the response line-by-line
+        /// and report deserialized text pieces through the optional onMessage progress callback.
+        /// Returns the accumulated final text when complete.
+        /// </summary>
+        public async Task<string> SendChatAsync(string userQuery, string model = "llama3.2", string? bearerToken = null, CancellationToken cancellationToken = default, IProgress<string>? onMessage = null)
+        {
+            if (string.IsNullOrWhiteSpace(userQuery))
+                return string.Empty;
+
+            var systemInstruction = "You are an assistant that recommends the first actions a developer or support engineer should take when they encounter a bug. Prioritize only necessary and high-impact steps. Keep responses concise.";
+
+            var messages = new[]
+            {
+                new { role = "system", content = systemInstruction },
+                new { role = "user", content = userQuery }
+            };
+
+            var payload = new { model = model, stream = false, messages };
+            var json = JsonSerializer.Serialize(payload);
+
+            using var req = new HttpRequestMessage(HttpMethod.Post, _endpoint)
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json")
+            };
+
+            if (!string.IsNullOrWhiteSpace(bearerToken))
+            {
+                try
+                {
+                    req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+                }
+                catch
+                {
+                    // ignore malformed token formatting
+                }
+            }
+
+            try
+            {
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                cts.CancelAfter(TimeSpan.FromSeconds(60));
+
+                // Send request and start reading response headers so we can stream body
+                var resp = await _http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, cts.Token).ConfigureAwait(false);
+
+                if (!resp.IsSuccessStatusCode)
+                {                    var body = await resp.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);                var sb = new StringBuilder();
+                while (!reader.EndOfStream && !cts.IsCancellationRequested)
+                {                    var line = await reader.ReadLineAsync().ConfigureAwait(false);                    if (line is null) break;                    line = line.Trim();                    if (line.Length == 0) continue;                    // strip SSE 'data:' prefix if present                    if (line.StartsWith("data:", StringComparison.OrdinalIgnoreCase))                        line = line.Substring(5).Trim();                    if (line == "[DONE]" || line == "done")                        break;                    string? textPiece = null;                    try                    {                        using var doc = JsonDocument.Parse(line);                        var root = doc.RootElement;                        // Prefer structured chat path: { "message": { "content": "..." } }                        if (root.TryGetProperty("message", out var message) && message.ValueKind == JsonValueKind.Object)                        {                            if (message.TryGetProperty("content", out var mc))                            {                                if (mc.ValueKind == JsonValueKind.String)                                    textPiece = mc.GetString();                                else if (mc.ValueKind == JsonValueKind.Object && mc.TryGetProperty("text", out var nestedText) && nestedText.ValueKind == JsonValueKind.String)                                    textPiece = nestedText.GetString();                                else if (mc.ValueKind == JsonValueKind.Array && mc.GetArrayLength() > 0)                                {                                    foreach (var el in mc.EnumerateArray())                                    {                                        if (el.ValueKind == JsonValueKind.String)                                        {                                            textPiece = el.GetString();                                            break;                                        }                                        if (el.ValueKind == JsonValueKind.Object && el.TryGetProperty("text", out var et) && et.ValueKind == JsonValueKind.String)                                        {                                            textPiece = et.GetString();                                            break;                                        }                                    }                                }                            }                        }                        // fallback shapes                        else if (root.TryGetProperty("content", out var c) && c.ValueKind == JsonValueKind.String)                        {                            textPiece = c.GetString();                        }                        else if (root.TryGetProperty("text", out var t) && t.ValueKind == JsonValueKind.String)                        {                            textPiece = t.GetString();                        }                        else if (root.TryGetProperty("response", out var r) && r.ValueKind == JsonValueKind.String)                        {                            textPiece = r.GetString();                        }                        else if (root.TryGetProperty("choices", out var choices) && choices.ValueKind == JsonValueKind.Array && choices.GetArrayLength() > 0)                        {                            var first = choices[0];                            if (first.ValueKind == JsonValueKind.Object)                            {                                if (first.TryGetProperty("message", out var m) && m.ValueKind == JsonValueKind.Object && m.TryGetProperty("content", out var cont) && cont.ValueKind == JsonValueKind.String)                                    textPiece = cont.GetString();                                else if (first.TryGetProperty("content", out var cont2) && cont2.ValueKind == JsonValueKind.String)                                    textPiece = cont2.GetString();                            }                        }                    }                    catch (JsonException)                    {                        // treat as plain text                        textPiece = line;                    }                    if (!string.IsNullOrEmpty(textPiece))                    {                        try { onMessage?.Report(textPiece); } catch { }                        sb.Append(textPiece);                    }                }                return sb.ToString();            }            catch (OperationCanceledException)            {                return "Ollama request timed out or was cancelled.";            }            catch (Exception ex)            {                return $"OllamaClient error: {ex.Message}";            }        }        public void Dispose()        {  
