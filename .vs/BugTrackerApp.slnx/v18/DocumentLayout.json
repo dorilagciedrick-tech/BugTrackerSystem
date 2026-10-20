@@ -3,6 +3,10 @@
   "WorkspaceRootPath": "C:\\Users\\Ciedrick P. Dorilag\\BugTracker\\",
   "Documents": [
     {
+      "AbsoluteMoniker": "D:0:0:{ECADF4C2-0273-1F2D-C58A-F52C446D40BB}|BugTrackerApp.csproj|c:\\users\\ciedrick p. dorilag\\bugtracker\\ollamaclient.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{ECADF4C2-0273-1F2D-C58A-F52C446D40BB}|BugTrackerApp.csproj|solutionrelative:ollamaclient.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{ECADF4C2-0273-1F2D-C58A-F52C446D40BB}|BugTrackerApp.csproj|c:\\users\\ciedrick p. dorilag\\bugtracker\\bugmanager.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{ECADF4C2-0273-1F2D-C58A-F52C446D40BB}|BugTrackerApp.csproj|solutionrelative:bugmanager.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
@@ -25,10 +29,6 @@
     {
       "AbsoluteMoniker": "D:0:0:{ECADF4C2-0273-1F2D-C58A-F52C446D40BB}|BugTrackerApp.csproj|c:\\users\\ciedrick p. dorilag\\bugtracker\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{ECADF4C2-0273-1F2D-C58A-F52C446D40BB}|BugTrackerApp.csproj|solutionrelative:program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{ECADF4C2-0273-1F2D-C58A-F52C446D40BB}|BugTrackerApp.csproj|c:\\users\\ciedrick p. dorilag\\bugtracker\\ollamaclient.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{ECADF4C2-0273-1F2D-C58A-F52C446D40BB}|BugTrackerApp.csproj|solutionrelative:ollamaclient.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{ECADF4C2-0273-1F2D-C58A-F52C446D40BB}|BugTrackerApp.csproj|c:\\users\\ciedrick p. dorilag\\bugtracker\\mainform.resx||{81828910-B8B3-4D2B-99A3-067027C180C1}",
@@ -65,12 +65,8 @@
               "Name": "ST:0:0:{aa2115a1-9712-457b-9047-dbb71ca2cdd2}"
             },
             {
-              "$type": "Bookmark",
-              "Name": "ST:0:0:{1c64b9c2-e352-428e-a56d-0ace190b99a6}"
-            },
-            {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 2,
               "Title": "CollectionBenchmark.cs",
               "DocumentMoniker": "C:\\Users\\Ciedrick P. Dorilag\\BugTracker\\CollectionBenchmark.cs",
               "RelativeDocumentMoniker": "CollectionBenchmark.cs",
@@ -78,12 +74,11 @@
               "RelativeToolTip": "CollectionBenchmark.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAGMAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-09-29T08:31:41.728Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-09-29T08:31:41.728Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 5,
+              "DocumentIndex": 6,
               "Title": "Program.cs",
               "DocumentMoniker": "C:\\Users\\Ciedrick P. Dorilag\\BugTracker\\Program.cs",
               "RelativeDocumentMoniker": "Program.cs",
@@ -91,24 +86,11 @@
               "RelativeToolTip": "Program.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-09-29T12:45:39.428Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-09-29T12:45:39.428Z"
             },
             {
               "$type": "Document",
               "DocumentIndex": 3,
-              "Title": "MainForm.cs [Design]",
-              "DocumentMoniker": "C:\\Users\\Ciedrick P. Dorilag\\BugTracker\\MainForm.cs",
-              "RelativeDocumentMoniker": "MainForm.cs",
-              "ToolTip": "C:\\Users\\Ciedrick P. Dorilag\\BugTracker\\MainForm.cs [Design]",
-              "RelativeToolTip": "MainForm.cs [Design]",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-09-29T11:53:06.006Z",
-              "EditorCaption": " [Design]"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 2,
               "Title": "BugReport.cs",
               "DocumentMoniker": "C:\\Users\\Ciedrick P. Dorilag\\BugTracker\\BugReport.cs",
               "RelativeDocumentMoniker": "BugReport.cs",
@@ -116,12 +98,11 @@
               "RelativeToolTip": "BugReport.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-09-29T08:29:35.177Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-09-29T08:29:35.177Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 0,
+              "DocumentIndex": 1,
               "Title": "BugManager.cs",
               "DocumentMoniker": "C:\\Users\\Ciedrick P. Dorilag\\BugTracker\\BugManager.cs",
               "RelativeDocumentMoniker": "BugManager.cs",
@@ -129,12 +110,11 @@
               "RelativeToolTip": "BugManager.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAD8AAAAhAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-09-29T08:27:15.783Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-09-29T08:27:15.783Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 4,
+              "DocumentIndex": 5,
               "Title": "Timing.cs",
               "DocumentMoniker": "C:\\Users\\Ciedrick P. Dorilag\\BugTracker\\Timing.cs",
               "RelativeDocumentMoniker": "Timing.cs",
@@ -142,18 +122,17 @@
               "RelativeToolTip": "Timing.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-09-29T08:30:11.871Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-09-29T08:30:11.871Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 6,
+              "DocumentIndex": 0,
               "Title": "OllamaClient.cs",
               "DocumentMoniker": "C:\\Users\\Ciedrick P. Dorilag\\BugTracker\\OllamaClient.cs",
               "RelativeDocumentMoniker": "OllamaClient.cs",
               "ToolTip": "C:\\Users\\Ciedrick P. Dorilag\\BugTracker\\OllamaClient.cs",
               "RelativeToolTip": "OllamaClient.cs",
-              "ViewState": "AgIAAEIAAAAAAAAAAAAowFMAAABjAAAAAAAAAA==",
+              "ViewState": "AgIAAAoAAAAAAAAAAADwvxAAAAAqAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2026-09-29T11:38:45.388Z",
               "EditorCaption": ""
@@ -192,8 +171,22 @@
               "ToolTip": "C:\\Users\\Ciedrick P. Dorilag\\BugTracker\\MainForm.resx",
               "RelativeToolTip": "MainForm.resx",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001005|",
-              "WhenOpened": "2026-09-29T12:45:34.561Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-09-29T12:45:34.561Z"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{1c64b9c2-e352-428e-a56d-0ace190b99a6}"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "MainForm.cs [Design]",
+              "DocumentMoniker": "C:\\Users\\Ciedrick P. Dorilag\\BugTracker\\MainForm.cs",
+              "RelativeDocumentMoniker": "MainForm.cs",
+              "ToolTip": "C:\\Users\\Ciedrick P. Dorilag\\BugTracker\\MainForm.cs [Design]",
+              "RelativeToolTip": "MainForm.cs [Design]",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-09-29T11:53:06.006Z"
             }
           ]
         }
