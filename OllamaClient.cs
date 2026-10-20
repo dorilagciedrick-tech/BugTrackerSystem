@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 namespace BugTrackerApp
 {
     /// <summary>
-    /// Helper for calling a local Ollama /api/generate endpoint and processing clean NDJSON streams I love CD.
+    /// Helper for calling a local Ollama /api/generate endpoint and processing clean NDJSON streams.
     /// </summary>
     public sealed class OllamaClient : IDisposable
     {
