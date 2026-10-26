@@ -44,41 +44,53 @@ namespace BugTrackerApp
         {
             var developerLabel = new Label
             {
-                Text = "Developer",
-                Left = 28,
+                Text = "Client Name:",
+                Left = 10,
                 Top = 28,
-                Width = 110,
+                Width = 200,
+                Height = 32,
                 Font = new Font("Segoe UI", 11F, FontStyle.Bold, GraphicsUnit.Point),
-                ForeColor = Color.FromArgb(17, 48, 94)
+                ForeColor = Color.FromArgb(17, 48, 94),
+                AutoSize = false,
+                TextAlign = ContentAlignment.MiddleLeft
             };
-            developerTextBox.SetBounds(150, 24, 760, 32);
+            developerTextBox.SetBounds(220, 24, 720, 32);
+            developerTextBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             developerTextBox.Font = new Font("Segoe UI", 11F, FontStyle.Regular, GraphicsUnit.Point);
             developerTextBox.BorderStyle = BorderStyle.FixedSingle;
             developerTextBox.BackColor = Color.White;
 
             var bugIdLabel = new Label
             {
-                Text = "Bug ID:",
-                Left = 28,
+                Text = "Time Happened:",
+                Left = 10,
                 Top = 78,
-                Width = 110,
+                Width = 200,
+                Height = 32,
                 Font = new Font("Segoe UI", 11F, FontStyle.Bold, GraphicsUnit.Point),
-                ForeColor = Color.FromArgb(17, 48, 94)
+                ForeColor = Color.FromArgb(17, 48, 94),
+                AutoSize = false,
+                TextAlign = ContentAlignment.MiddleLeft
             };
-            bugIdTextBox.SetBounds(150, 74, 320, 32);
+            bugIdTextBox.SetBounds(220, 74, 340, 32);
+            bugIdTextBox.Anchor = AnchorStyles.Top | AnchorStyles.Left;
             bugIdTextBox.Font = new Font("Segoe UI", 11F, FontStyle.Regular, GraphicsUnit.Point);
             bugIdTextBox.BorderStyle = BorderStyle.FixedSingle;
 
             var summaryLabel = new Label
             {
-                Text = "Summary:",
-                Left = 28,
+                Text = "Bug Encountered:",
+                Left = 10,
                 Top = 128,
-                Width = 110,
+                Width = 200,
+                Height = 32,
                 Font = new Font("Segoe UI", 11F, FontStyle.Bold, GraphicsUnit.Point),
-                ForeColor = Color.FromArgb(17, 48, 94)
+                ForeColor = Color.FromArgb(17, 48, 94),
+                AutoSize = false,
+                TextAlign = ContentAlignment.MiddleLeft
             };
-            summaryTextBox.SetBounds(150, 124, 760, 32);
+            summaryTextBox.SetBounds(220, 124, 720, 32);
+            summaryTextBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             summaryTextBox.Font = new Font("Segoe UI", 11F, FontStyle.Regular, GraphicsUnit.Point);
             summaryTextBox.BorderStyle = BorderStyle.FixedSingle;
 
@@ -177,6 +189,32 @@ namespace BugTrackerApp
                 displayListBox,
                 benchmarkOutputTextBox
             });
+
+            Resize += (_, _) => UpdateLayoutForSize();
+            UpdateLayoutForSize();
+        }
+
+        private void UpdateLayoutForSize()
+        {
+            int rightPanelWidth = 300;
+            int rightPanelLeft = ClientSize.Width - rightPanelWidth - 20;
+            int rightPanelTop = 24;
+            int rightPanelBottomMargin = 24;
+
+            aiChatHistory.SetBounds(rightPanelLeft, rightPanelTop, rightPanelWidth, Math.Max(440, ClientSize.Height - 180));
+            aiInput.SetBounds(rightPanelLeft, aiChatHistory.Bottom + 16, rightPanelWidth - 90, 28);
+            aiSendButton.SetBounds(rightPanelLeft + rightPanelWidth - 88, aiInput.Top, 78, 28);
+
+            int leftContentWidth = Math.Max(600, aiChatHistory.Left - 30 - 220);
+            developerTextBox.Width = leftContentWidth;
+            summaryTextBox.Width = leftContentWidth;
+
+            displayListBox.Width = Math.Max(700, aiChatHistory.Left - 28 - 16);
+            benchmarkOutputTextBox.Width = displayListBox.Width;
+
+            displayListBox.Height = Math.Max(180, aiChatHistory.Height - 250);
+            benchmarkOutputTextBox.Top = displayListBox.Bottom + 20;
+            benchmarkOutputTextBox.Height = Math.Max(90, ClientSize.Height - benchmarkOutputTextBox.Top - rightPanelBottomMargin);
         }
 
         private static void ConfigureButton(Button button, string text, int left, int top, int width, int height, Color backColor, Color hoverColor)
@@ -197,7 +235,7 @@ namespace BugTrackerApp
         {
             if (string.IsNullOrWhiteSpace(developerTextBox.Text) || string.IsNullOrWhiteSpace(bugIdTextBox.Text))
             {
-                MessageBox.Show("Please enter both Developer name and Bug ID before submitting.", "Missing Data", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Please enter both Client Name and Time Happened before submitting.", "Missing Data", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
