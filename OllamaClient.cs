@@ -46,8 +46,8 @@ namespace BugTrackerApp
             // Hardcode the endpoint path to map perfectly to your system UI selection
             var endpoint = "http://localhost:11434/api/generate";
 
-            // Inject engineering system identity instructions seamlessly into the text payload block
-            string systemInstruction = "You are an assistant that recommends the first actions a developer or support engineer should take when they encounter a bug. Prioritize only necessary and high-impact steps. Keep responses concise.";
+            // Inject Quipper-specific triage instructions so AI understands the platform, the user, and the issue being reported.
+            string systemInstruction = "You are a Quipper support triage assistant for an education platform. Understand that Quipper is used by students, teachers, and administrators to access classes, assignments, quizzes, videos, assessments, and reports. Diagnose likely technical problems in the context of school workflows and suggest the first high-impact troubleshooting steps, priority, and likely affected feature. Keep responses concise, actionable, and tailored to the exact issue described.";
             string structuredPrompt = $"System instruction: {systemInstruction}\nUser request: {userQuery}\nAssistant response:";
 
             // Build payload using the verified "prompt" shape with streaming true

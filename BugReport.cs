@@ -4,20 +4,41 @@ namespace BugTrackerApp
 {
     public class BugReport
     {
-        public string DeveloperName { get; set; }
-        public string BugID { get; set; }
-        public string Summary { get; set; }
-
-        public BugReport(string developerName, string bugID, string summary)
+        public string ReporterName { get; set; } = string.Empty;
+        public string DeveloperName
         {
-            DeveloperName = developerName;
-            BugID = bugID;
-            Summary = summary;
+            get => ReporterName;
+            set => ReporterName = value ?? string.Empty;
+        }
+
+        public string BugID { get; set; } = string.Empty;
+        public string CourseName { get; set; } = string.Empty;
+        public string FeatureArea { get; set; } = string.Empty;
+        public string Severity { get; set; } = string.Empty;
+        public string Environment { get; set; } = string.Empty;
+        public string Summary { get; set; } = string.Empty;
+
+        public BugReport(
+            string developerName,
+            string bugID,
+            string summary,
+            string? courseName = null,
+            string? featureArea = null,
+            string? severity = null,
+            string? environment = null)
+        {
+            ReporterName = string.IsNullOrWhiteSpace(developerName) ? "Unknown Reporter" : developerName.Trim();
+            BugID = string.IsNullOrWhiteSpace(bugID) ? "Unknown" : bugID.Trim();
+            Summary = summary?.Trim() ?? string.Empty;
+            CourseName = string.IsNullOrWhiteSpace(courseName) ? "Not specified" : courseName.Trim();
+            FeatureArea = string.IsNullOrWhiteSpace(featureArea) ? "General" : featureArea.Trim();
+            Severity = string.IsNullOrWhiteSpace(severity) ? "Medium" : severity.Trim();
+            Environment = string.IsNullOrWhiteSpace(environment) ? "Web" : environment.Trim();
         }
 
         public override string ToString()
         {
-            return $"{BugID} - {DeveloperName}: {Summary}";
+            return $"[{BugID}] {ReporterName} • {CourseName} • {FeatureArea} • {Severity}: {Summary}";
         }
     }
 }
